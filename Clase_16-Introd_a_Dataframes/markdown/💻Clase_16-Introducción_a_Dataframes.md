@@ -759,8 +759,7 @@ val eventos = sc.parallelize(List(
   ("user1", "video", 9.0),
   ("user3", "video", 11.0),
   ("user2", "quiz", 4.0),
-  ("user3", "video", 13.0)
-), 3)
+  ("user3", "video", 13.0),)
 ```
 
 ---
@@ -927,6 +926,8 @@ DataFrame  =  RDD[Row]  +  Schema
 Para trabajar con DataFrames necesitamos una `SparkSession`. Es el objeto principal desde el que creamos DataFrames, ejecutamos SQL y accedemos a la configuración de Spark. En versiones anteriores de Spark existían `SparkContext`, `SQLContext` y `HiveContext` por separado. A partir de Spark 2.0, `SparkSession` los unifica a todos.
 
 ```scala
+import $ivy.`org.apache.spark::spark-sql:4.1.1`
+import $ivy.`org.apache.spark::spark-core:4.1.1`
 import org.apache.spark.sql.SparkSession
 
 val spark = SparkSession.builder()
@@ -964,6 +965,7 @@ Hay varias formas de crear un DataFrame según el origen de los datos.
 La más sencilla para pruebas y aprendizaje. Usamos `createDataFrame` con una secuencia de tuplas y le damos nombres a las columnas con `.toDF(...)`.
 
 ```scala
+import spark.implicits._
 // Forma 1: Seq de tuplas + toDF con nombres de columna
 val dfEmpleados = Seq(
   (1, "Ana García",    28, "Ingeniería"),
@@ -993,15 +995,180 @@ dfEmpleados.show()
 > Sin este import, el compilador no encontrará el método `.toDF`.
 > 
 
+## Pasos para crear un .csv y un .json en vscode desde el notebook
+
+<aside>
+💡
+
+Pasos para crear datos sintéticos en csv desde VsCode
+
+✅ 1. Crear CSV sintético en esa ruta:
+
+```scala
+import java.nio.file.{Files, Paths}
+import java.nio.charset.StandardCharsets
+
+val ruta = "C:/Users/Imp_06 - Mañana/Desktop/Notebooks/datos"
+Files.createDirectories(Paths.get(ruta))
+
+val contenidoCSV =
+"""id_venta,fecha,producto,categoria,cantidad,precio_unitario,ciudad
+1,2026-04-01,Portátil,Informática,2,850.50,Madrid
+2,2026-04-01,Ratón,Informática,5,18.90,Valencia
+3,2026-04-02,Teclado,Informática,3,45.00,Sevilla
+4,2026-04-02,Monitor,Informática,1,199.99,Madrid
+5,2026-04-03,Silla,Oficina,4,120.00,Barcelona
+6,2026-04-03,Mesa,Oficina,2,250.00,Zaragoza
+7,2026-04-04,Webcam,Informática,6,39.90,Madrid
+8,2026-04-04,Auriculares,Informática,3,59.99,Valencia
+"""
+
+val pathCSV = s"$ruta/ventas.csv"
+
+Files.write(
+  Paths.get(pathCSV),
+  contenidoCSV.getBytes(StandardCharsets.UTF_8)
+)
+
+println(s"CSV creado en: $pathCSV")
+```
+
+✅ 2. Leer el CSV con Spark
+
+```scala
+val dfVentas = spark.read
+  .option("header", "true")
+  .option("inferSchema", "true")
+  .csv("C:/Users/Imp_06 - Mañana/Desktop/Notebooks/datos/ventas.csv")
+
+dfVentas.show(5)
+dfVentas.printSchema()
+```
+
+</aside>
+
+<aside>
+💡
+
+Pasos para crear un JSON simple:
+
+1. En Spark, el JSON simple suele ser **JSON Lines**: un objeto JSON por línea.
+    
+    ```scala
+    import java.nio.file.{Files, Paths}
+    import java.nio.charset.StandardCharsets
+    
+    val ruta = "C:/Users/Imp_06 - Mañana/Desktop/Notebooks/datos" // Usa tu propia ruta, sino te dará error
+    Files.createDirectories(Paths.get(ruta))
+    
+    val jsonSimple =
+    """{"id":1,"nombre":"Ana García","edad":28,"departamento":"Ingeniería"}
+    {"id":2,"nombre":"Luis Martínez","edad":34,"departamento":"Marketing"}
+    {"id":3,"nombre":"Marta López","edad":22,"departamento":"Ingeniería"}
+    {"id":4,"nombre":"Pedro Ruiz","edad":41,"departamento":"Dirección"}"""
+    
+    val rutaJsonSimple = s"$ruta/empleados_simple.json"
+    
+    Files.write(
+      Paths.get(rutaJsonSimple),
+      jsonSimple.getBytes(StandardCharsets.UTF_8)
+    )
+    
+    println(s"JSON simple creado en: $rutaJsonSimple")
+    ```
+    
+2. Leerlo con Spark:
+
+```scala
+val dfJsonSimple = spark.read
+  .option("inferSchema", "true")
+  .json(rutaJsonSimple)
+
+dfJsonSimple.show(false)
+dfJsonSimple.printSchema()
+```
+
+</aside>
+
+<aside>
+💡
+
+Pasos para crear un JSON multilínea:
+
+1. Este formato tiene normalmente un **array JSON** con varios objetos dentro.
+    
+    ```scala
+    val jsonMultilinea =
+    """[
+      {
+        "id": 1,
+        "nombre": "Ana García",
+        "edad": 28,
+        "departamento": "Ingeniería"
+      },
+      {
+        "id": 2,
+        "nombre": "Luis Martínez",
+        "edad": 34,
+        "departamento": "Marketing"
+      },
+      {
+        "id": 3,
+        "nombre": "Marta López",
+        "edad": 22,
+        "departamento": "Ingeniería"
+      },
+      {
+        "id": 4,
+        "nombre": "Pedro Ruiz",
+        "edad": 41,
+        "departamento": "Dirección"
+      }
+    ]"""
+    
+    val rutaJsonMultilinea = s"$ruta/empleados_multilinea.json"
+    
+    Files.write(
+      Paths.get(rutaJsonMultilinea),
+      jsonMultilinea.getBytes(StandardCharsets.UTF_8)
+    )
+    
+    println(s"JSON multilínea creado en: $rutaJsonMultilinea")
+    ```
+    
+2. Leerlo con Spark:
+    
+    ```scala
+    val dfJsonMultilinea = spark.read
+      .option("multiline", "true")
+      .option("inferSchema", "true")
+      .json(rutaJsonMultilinea)
+    
+    dfJsonMultilinea.show(false)
+    dfJsonMultilinea.printSchema()
+    ```
+    
+3. La diferencia clave es esta opción:
+    
+    ```scala
+    .option("multiline", "true")
+    ```
+    
+</aside>
+
 ### 4.2 Desde un fichero CSV
 
 ```scala
 val dfVentas = spark.read
   .option("header", "true")       // primera fila como nombres de columna
   .option("inferSchema", "true")  // detectar tipos automáticamente
-  .csv("C:/Curso-Scala/datos/ventas.csv")
+  .csv("C:/Users/Imp_06 - Mañana/Desktop/Notebooks/datos/ventas.csv")
 
 dfVentas.show(5)         // muestra las primeras 5 filas
+
+```
+
+```scala
 dfVentas.printSchema()   // muestra la estructura con tipos
 ```
 
@@ -1010,9 +1177,12 @@ dfVentas.printSchema()   // muestra la estructura con tipos
 ```scala
 val dfClientes = spark.read
   .option("multiline", "true")    // para JSON con objetos multilínea
-  .json("C:/Curso-Scala/datos/clientes.json")
+  .json("C:/Users/Imp_06 - Mañana/Desktop/Notebooks/datos/empleados_multilinea.json")
 
 dfClientes.show()
+```
+
+```scala
 dfClientes.printSchema()
 ```
 
@@ -1021,12 +1191,12 @@ dfClientes.printSchema()
 ```scala
 // Parquet lleva el schema integrado en el propio fichero
 val dfParquet = spark.read
-  .parquet("C:/Curso-Scala/datos/pedidos.parquet")
+  .parquet("C:/Users/Imp_06 - Mañana/Desktop/Notebooks/datos/pedidos.parquet")
 
 dfParquet.show()
 ```
 
-> 💡Empezaremos con CSV y JSON. El formato Parquet lo veremos en profundidad en el Día 17.
+> 💡Empezaremos con CSV y JSON. El formato Parquet lo veremos en profundidad en la clase 17.
 > 
 
 ---
@@ -1057,6 +1227,69 @@ La salida muestra un árbol con:
 Cuando usamos `inferSchema = true`, Spark lee una muestra del fichero y adivina los tipos. Es cómodo pero tiene dos inconvenientes: es más lento (tiene que leer los datos dos veces) y puede equivocarse con columnas ambiguas (por ejemplo, un código postal "01234" podría inferirse como `integer` y perder el cero inicial).
 
 La alternativa es definir el schema **manualmente** con `StructType` y `StructField`:
+
+```scala
+import java.nio.file.{Files, Paths}
+import java.nio.charset.StandardCharsets
+
+import org.apache.spark.sql.types._
+
+val ruta = "C:/Users/Imp_06 - Mañana/Desktop/Notebooks/datos"
+Files.createDirectories(Paths.get(ruta))
+
+val contenidoPedidos =
+"""id_pedido,id_cliente,fecha,importe,completado
+1,101,2026-04-01,250.75,true
+2,102,2026-04-01,99.90,false
+3,103,2026-04-02,430.00,true
+4,101,2026-04-03,120.50,true
+5,104,2026-04-04,75.25,false
+6,105,2026-04-05,680.40,true
+"""
+
+val rutaPedidos = s"$ruta/pedidos.csv"
+
+Files.write(
+  Paths.get(rutaPedidos),
+  contenidoPedidos.getBytes(StandardCharsets.UTF_8)
+)
+
+println(s"CSV creado correctamente en: $rutaPedidos")
+```
+
+```scala
+import org.apache.spark.sql.types._
+val schemaPedidos = StructType(List(
+  StructField("id_pedido", IntegerType, nullable = false),
+  StructField("id_cliente", IntegerType, nullable = false),
+  StructField("fecha", StringType, nullable = true),
+  StructField("importe", DoubleType, nullable = true),
+  StructField("completado", BooleanType, nullable = true)
+))
+
+val dfPedidos = spark.read
+  .option("header", "true")
+  .schema(schemaPedidos)
+  .csv("C:/Users/Imp_06 - Mañana/Desktop/Notebooks/datos/pedidos.csv")
+
+dfPedidos.show(false)
+
+```
+
+```scala
+dfPedidos.printSchema()
+```
+
+Salida esperada:
+
+```scala
+root
+ |-- id_pedido: integer (nullable = true)
+ |-- id_cliente: integer (nullable = true)
+ |-- fecha: string (nullable = true)
+ |-- importe: double (nullable = true)
+ |-- completado: boolean (nullable = true)
+```
 
 ```scala
 import org.apache.spark.sql.types._
@@ -1105,7 +1338,14 @@ Antes de transformar datos, siempre conviene explorar el DataFrame con estas ope
 
 ```scala
 df.show()        // primeras 20 filas (por defecto)
+
+```
+
+```scala
 df.show(5)       // primeras 5 filas
+```
+
+```scala
 df.show(5, truncate = false)  // sin truncar textos largos
 ```
 
@@ -1151,6 +1391,9 @@ df.describe().show()
 // |    max|                41|     4|
 // +-------+------------------+------+
 
+```
+
+```scala
 // También puedes limitar a columnas concretas:
 df.describe("edad", "id").show()
 ```
