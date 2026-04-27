@@ -125,7 +125,7 @@ C:\Users\Imp_06 - Mañana\AppData\Roaming\jupyter\kernels\scala21318
 Si no la encuentras escribe esto en un nuevo terminal de powershell:
 
 ```scala
-explorer "$env:APPDATA\jupyter\kernels\
+explorer "$env:APPDATA\jupyter\kernels\"
 ```
 
  Buscas una carpeta que diga scala 2.13 o 2.13.18 , entras a la carpeta.
