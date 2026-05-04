@@ -358,7 +358,7 @@ Salida esperada:
 ### Celda 1 — Definir la `case class`
 
 ```scala
-case class Venta(
+	case class Venta(
   idVenta: Int,
   producto: String,
   categoria: String,
@@ -581,6 +581,43 @@ Salida esperada:
 class org.apache.spark.sql.classic.Dataset
 ```
 
+<aside>
+💡
+
+Puedes ver la diferencia mas a detalle usando un `printSchema()` de esta forma:
+
+```scala
+println("=== DataFrame ===")
+dfVentas.printSchema()
+
+println("=== Dataset[Venta] ===")
+dsVentas.printSchema()
+```
+
+Salida:
+
+```scala
+=== DataFrame ===
+root
+ |-- idVenta: integer (nullable = false)
+ |-- producto: string (nullable = true)
+ |-- categoria: string (nullable = true)
+ |-- cantidad: integer (nullable = false)
+ |-- precioUnitario: double (nullable = false)
+ |-- ciudad: string (nullable = true)
+
+=== Dataset[Venta] ===
+root
+ |-- idVenta: integer (nullable = false)
+ |-- producto: string (nullable = true)
+ |-- categoria: string (nullable = true)
+ |-- cantidad: integer (nullable = false)
+ |-- precioUnitario: double (nullable = false)
+ |-- ciudad: string (nullable = true)
+```
+
+</aside>
+
 ## 8.2 DataFrame a Dataset con `.as[T]`
 
 Supongamos que tenemos un DataFrame:
@@ -646,6 +683,113 @@ Usa Dataset cuando quieras lógica de negocio tipada con case classes y segurida
 
 Usa RDD solo cuando necesites control de bajo nivel o trabajar con datos muy poco estructurados.
 ```
+
+Por ejemplo, en un DataFrame puedes hacer:
+
+```scala
+dfVentas.filter($"cantidad" >= 3)
+dfVentas.withColumn("total", $"cantidad" * $"precioUnitario")
+```
+
+Eso es una transformación de datos. Pero imagina que la empresa tiene reglas de negocio como estas:
+
+```scala
+- Una venta es grande si su total supera 500 €
+- Una venta necesita revisión si el total es alto pero la cantidad es baja
+- Un cliente es VIP si ha comprado más de 1000 € y tiene más de 3 pedidos
+- Un pedido es sospechoso si viene de cierta ciudad y supera cierto importe
+- Un producto tiene descuento si pertenece a una categoría concreta y hay mucho stock
+```
+
+Eso ya es **lógica de negocio**.
+
+### Ejemplo:
+
+Supongamos esta `case class`:
+
+```scala
+case class Venta(
+  idVenta: Int,
+  producto: String,
+  categoria: String,
+  cantidad: Int,
+  precioUnitario: Double,
+  ciudad: String
+)
+```
+
+```scala
+val dsVentas = Seq(
+  Venta(1, "Portátil", "Informática", 2, 850.50, "Madrid"),
+  Venta(2, "Ratón", "Informática", 5, 18.90, "Valencia"),
+  Venta(3, "Teclado", "Informática", 3, 45.00, "Sevilla"),
+  Venta(4, "Monitor", "Informática", 1, 199.99, "Madrid"),
+  Venta(5, "Silla", "Oficina", 4, 120.00, "Barcelona"),
+  Venta(6, "Mesa", "Oficina", 2, 250.00, "Zaragoza"),
+  Venta(7, "Webcam", "Informática", 6, 39.90, "Madrid"),
+  Venta(8, "Auriculares", "Informática", 3, 59.99, "Valencia")
+).toDS()
+```
+
+Podemos crear una función de negocio:
+
+```scala
+def esVentaGrande(venta: Venta): Boolean = {
+  val total = venta.cantidad * venta.precioUnitario
+  total >= 500
+}
+```
+
+Y otra regla:
+
+```scala
+def esVentaGrande(venta: Venta): Boolean =
+  calcularTotal(venta) >= 500
+```
+
+Luego la aplicamos al Dataset:
+
+```scala
+val ventasGrandes = dsVentas.filter(venta => esVentaGrande(venta))
+
+ventasGrandes.show(false)
+```
+
+Aquí `esVentaGrande` no es una operación genérica de Spark. Es una regla de la empresa:
+
+> “Para esta empresa, una venta grande es una venta cuyo total supera 500 €”.
+> 
+
+Otro ejemplo:
+
+```scala
+def clasificarVenta(venta: Venta): String = {
+  val total = venta.cantidad * venta.precioUnitario
+
+  if (total >= 1000) "Venta premium"
+  else if (total >= 500) "Venta importante"
+  else "Venta normal"
+}
+```
+
+Aplicado al Dataset:
+
+```scala
+val clasificaciones = dsVentas.map { venta =>
+  (venta.idVenta, venta.producto, clasificarVenta(venta))
+}
+clasificaciones.show(false)
+```
+
+Aquí estamos metiendo conocimiento del negocio dentro del código:
+
+```scala
+total >= 1000  → Venta premium
+total >= 500   → Venta importante
+menos de 500   → Venta normal
+```
+
+Eso es **lógica de negocio**.
 
 # 10. Errores comunes con Datasets
 
